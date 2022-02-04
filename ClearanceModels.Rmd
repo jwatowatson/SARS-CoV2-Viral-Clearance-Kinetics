@@ -1,7 +1,7 @@
 ---
 title: "Viral clearance"
 author: "James Watson"
-date: "20/01/2022"
+date: "04/02/2022"
 output: html_document
 ---
 
@@ -233,7 +233,8 @@ points(xx$Day, xx$CtT1, pch=17, cex=2, col=mycols[4])
 legend('topright',lwd=c(3,3,3,NA), 
        col=mycols,lty=c(1:3,NA),
        pch=c(NA,NA,NA,17), inset = 0.03, cex=1.3,
-       legend = c('Exponential','Bi-exponential','Spline','Observed median'))
+       legend = c('Exponential','Bi-exponential',
+                  'Spline','Observed median'))
 
 plot(40-stan_data1$delta_CT, 
      40-stan_data1$delta_CT-preds_mod1,
@@ -413,7 +414,6 @@ hist(colMeans(thetas_mod1$theta_rand[,vacc_ind,2]), breaks=seq(-1.5,1.5,by=.25))
 
 t.test(colMeans(thetas_mod1$theta_rand[,not_vacc_ind,2]),
        colMeans(thetas_mod1$theta_rand[,vacc_ind,2]))
-
 ```
 
 
@@ -463,7 +463,8 @@ boxplot(apply(thetas_mod2$theta_rand[,,2],2,mean) ~ stan_data1$variant[ind_uniqu
 ```
 
 
-effect of vaccine
+Effect of vaccine
+
 ```{r vaccine_effect, fig.width=8, fig.height=6}
 par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3)
 par(mfrow=c(1,2),las=1)

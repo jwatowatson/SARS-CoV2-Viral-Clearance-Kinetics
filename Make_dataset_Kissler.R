@@ -3,10 +3,12 @@ library(rstan)
 rstan_options(auto_write = TRUE)
 options(mc.cores = 4)
 
-
-dat1 = read.csv('../Data/Kissler1.csv')
+# obtained from https://github.com/gradlab/CtTrajectories_Omicron
+dat1 = read.csv('Data/Kissler1.csv')
 length(unique(dat1$PersonID))
-dat2 = read.csv('../Data/Kissler2.csv')
+
+# obtained from https://github.com/gradlab/CtTrajectories_AllVariants
+dat2 = read.csv('Data/Kissler2.csv')
 length(unique(dat2$PersonID))
 
 dat1 = dplyr::filter(dat1, TestDateIndex>= -20, 
@@ -38,8 +40,8 @@ CT_data$PersonID = as.numeric(as.factor(CT_data$PersonID))
 
 
 #*********** Estimate time of peak
-#*
 #* use a version of Ferguson model
+#* https://www.thelancet.com/journals/laninf/article/PIIS1473-3099(21)00648-4/fulltext
 
 CT_data$time=NA
 mod_est = stan_model(file = 'model_peak_est.stan')
@@ -72,4 +74,4 @@ CT_data = dplyr::filter(CT_data, time>=0, time<=14)
 range(CT_data$time)
 
 
-save(CT_data, file = '../Rdata/Kissler.RData')
+save(CT_data, file = 'Rdata/Kissler.RData')
