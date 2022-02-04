@@ -1,7 +1,7 @@
 ---
 title: "Viral clearance"
 author: "James Watson"
-date: "04/02/2022"
+date: "20/01/2022"
 output: html_document
 ---
 
@@ -36,6 +36,7 @@ There are multiple ways to define time to clearance. Time to first 40 is the eas
 ```{r time_to_clear}
 CT_data$ID = CT_data$PersonID
 CT_data$DeltaCT = 40 - CT_data$CtT1
+CT_data$Trt_effect = CT_data$Vaccinated
 CT_data_time_clear = time_to_clear(Delta_Ct = CT_data)
 ```
 
@@ -54,34 +55,36 @@ preds_mod2_NS = 40-colMeans(thetas_mod2$pred_CT)
 
 
 Plot data - those with vaccination status
-```{r vaccinated_data, fig.width=10}
+```{r Fig3, fig.width=10}
 cols = RColorBrewer::brewer.pal(n=5, 'Paired')[c(2,5)]
 par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3, mfrow=c(1,2))
-out_surv=survfit(Surv(time_to_clear, clearance_event) ~ Vaccinated,
+out_surv=survfit(Surv(time_to_clear, clearance_event) ~ Trt_effect,
                  data = CT_data_time_clear)
-plot(out_surv, conf.int=T, col=cols,
+plot(out_surv, conf.int=T, col=cols,lwd=2,
      xlab='Days since peak viral load',
      ylab='Proportion still positive')
 grid()
+mtext(text = 'A',side = 3,adj = 0,line = 1.5,cex = 1.3)
 legend('bottomleft', col=cols,inset=0.03,
        lwd=3,legend = c('Not vaccinated','Vaccinated'))
-out=survdiff(Surv(time_to_clear, clearance_event) ~ Vaccinated,
+out=survdiff(Surv(time_to_clear, clearance_event) ~ Trt_effect,
              data = CT_data_time_clear)
 out$chisq
 
 plot(CT_data$time, CT_data$CtT1,
      ylim = c(40, 14), xlab='Days since peak viral load',
-     ylab='CT', panel.first=grid(), col=CT_data$Vaccinated+1)
+     ylab='CT', panel.first=grid(), col=CT_data$Trt_effect+1)
+mtext(text = 'B',side = 3,adj = 0,line = 1.5,cex = 1.3)
 for(id in unique(CT_data$PersonID)){
   ind = CT_data$PersonID==id
   lines(CT_data$time[ind], 
-        CT_data$CtT1[ind], col=adjustcolor(cols[CT_data$Vaccinated[ind]+1],.6))
+        CT_data$CtT1[ind], col=adjustcolor(cols[CT_data$Trt_effect[ind]+1],.6))
 }
 CT_data$Day = round(CT_data$time)
 
-xx = aggregate(CtT1~Day+Vaccinated, CT_data, median)
-points(xx$Day[xx$Vaccinated==0], xx$CtT1[xx$Vaccinated==0], pch=17, cex=1.5, col='darkblue')
-points(xx$Day[xx$Vaccinated==1], xx$CtT1[xx$Vaccinated==1],
+xx = aggregate(CtT1~Day+Trt_effect, CT_data, median)
+points(xx$Day[xx$Trt_effect==0], xx$CtT1[xx$Trt_effect==0], pch=17, cex=1.5, col='darkblue')
+points(xx$Day[xx$Trt_effect==1], xx$CtT1[xx$Trt_effect==1],
        pch=17, cex=1.5,col='red')
 legend('topright', title = 'Median daily value',
        legend = c('Not vaccinated', 'Vaccinated'),
@@ -233,8 +236,7 @@ points(xx$Day, xx$CtT1, pch=17, cex=2, col=mycols[4])
 legend('topright',lwd=c(3,3,3,NA), 
        col=mycols,lty=c(1:3,NA),
        pch=c(NA,NA,NA,17), inset = 0.03, cex=1.3,
-       legend = c('Exponential','Bi-exponential',
-                  'Spline','Observed median'))
+       legend = c('Exponential','Bi-exponential','Spline','Observed median'))
 
 plot(40-stan_data1$delta_CT, 
      40-stan_data1$delta_CT-preds_mod1,
@@ -367,7 +369,7 @@ for(ds in 1:length(D_maxs)){
 
 
 Reduction in AUCs
-```{r AUC_comparison}
+```{r Fig2}
 vacc_ind = unique(stan_data1$id[which(stan_data1$vacc==1)])
 not_vacc_ind = unique(stan_data1$id[which(stan_data1$vacc==0)])
 
@@ -414,6 +416,7 @@ hist(colMeans(thetas_mod1$theta_rand[,vacc_ind,2]), breaks=seq(-1.5,1.5,by=.25))
 
 t.test(colMeans(thetas_mod1$theta_rand[,not_vacc_ind,2]),
        colMeans(thetas_mod1$theta_rand[,vacc_ind,2]))
+
 ```
 
 
@@ -463,8 +466,7 @@ boxplot(apply(thetas_mod2$theta_rand[,,2],2,mean) ~ stan_data1$variant[ind_uniqu
 ```
 
 
-Effect of vaccine
-
+effect of vaccine
 ```{r vaccine_effect, fig.width=8, fig.height=6}
 par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3)
 par(mfrow=c(1,2),las=1)
@@ -598,15 +600,13 @@ AUC reduction - only using data up to day 7
 
 ## Sample size estimation
 
-```{r power_calculations, fig.height=7, fig.width=10}
+```{r Fig4, fig.height=7}
 source('functions.R')
 load('Rout/power_matrix.RData')
 load('Rout/power_matrix_TTC.RData')
 load('Rout/mod_2.RData')
 thetas_mod2 = extract(out_mod2)
 my_effects = unique(res_power$effect)
-
-par(mfrow=c(1,2), las=1, family='serif', cex.lab=1.3, cex.axis=1.3)
 set.seed(75873426)
 Delta_Ct0 =
   sim_individuals(thetas = thetas_mod2,
@@ -623,8 +623,15 @@ Delta_Ct2 =
                   N = 1000,
                   t_design = seq(0,7, length.out = 15),
                   Trt_effect = rep(my_effects[2], 10^3))
+
+
+par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3)
+layout(mat = matrix(c(1,2,1,3),nrow = 2,byrow = T))
+
 plot(Delta_Ct0$time, 40-Delta_Ct0$DeltaCT, ylim = c(40, 20),type='n',
      xlab='Days', ylab='CT',panel.first=grid())
+mtext(text = 'A',side = 3,adj = 0,line = 1.5,cex = 1.3)
+
 lines(aggregate(40-DeltaCT ~ time, Delta_Ct0, median),lwd=2)
 lines(aggregate(40-DeltaCT ~ time, Delta_Ct1, median),lwd=2,lty=2)
 lines(aggregate(40-DeltaCT ~ time, Delta_Ct2, median),lwd=2,lty=3)
@@ -632,22 +639,50 @@ legend('topright', lty=1:3, lwd=2, legend = c('0','30%','50%'),
        title = expression(paste(beta, ' and ', alpha, ' increase (%)')),
        inset = 0.03)
 
-xx = aggregate(power ~ effect + N + t_design, 
-               data = res_power, FUN = mean)
-plot(xx$N, xx$power, pch = as.numeric(as.factor(xx$effect)),
-     xlab='Number of patients per arm', ylab='Power',
-     panel.first=grid(), ylim=c(0,1))
-abline(h=0.8, lty=2)
-lines(xx$N[xx$effect==my_effects[1]],
-      xx$power[xx$effect==my_effects[1]],lwd=2)
-lines(xx$N[xx$effect==my_effects[2]],
-      xx$power[xx$effect==my_effects[2]],lwd=2)
+xx_rate = aggregate(power ~ effect + N + t_design, 
+                    data = res_power, FUN = mean)
+xx_time = aggregate(power ~ effect + N + t_design, 
+                    data = res_power_TTC,FUN =  mean)
 
-xx = aggregate(power ~ effect + N + t_design, 
-               data = res_power_TTC,FUN =  mean)
-points(xx$N, xx$power, pch = as.numeric(as.factor(xx$effect)),col='darkblue')
-lines(xx$N[xx$effect==my_effects[1]], xx$power[xx$effect==my_effects[1]],lty=2,lwd=2,col='darkblue')
-lines(xx$N[xx$effect==my_effects[2]], xx$power[xx$effect==my_effects[2]],lty=3,lwd=2,col='darkblue')
+for(td in 1:2){
+  ind = xx_rate$t_design==td
+  plot(xx_rate$N[ind], xx_rate$power[ind], 
+       pch = 14+as.numeric(as.factor(xx_rate$effect[ind])),
+       xlab='Number of patients per arm', ylab='Power',
+       panel.first=grid(), ylim=c(0,1),cex=1.5)
+  abline(h=0.8, lty=2)
+  inde = xx_rate$effect==my_effects[1] & ind
+  lines(xx_rate$N[inde], xx_rate$power[inde],lwd=1,lty=2)
+  inde = xx_rate$effect==my_effects[2] & ind
+  lines(xx_rate$N[inde], xx_rate$power[inde],lwd=1,lty=3)
+  
+  ind = xx_time$t_design==td
+  points(xx_time$N[ind], xx_time$power[ind], 
+         pch = 14+as.numeric(as.factor(xx_time$effect[ind])),
+         col='pink')
+  
+  inde = xx_time$effect==my_effects[1] & ind
+  lines(xx_time$N[inde], xx_time$power[inde],lwd=1,lty=2,col='pink')
+  inde = xx_time$effect==my_effects[2] & ind
+  lines(xx_time$N[inde], xx_time$power[inde],lwd=1,lty=3,col='pink')
+  
+  if(td==1){
+    legend('bottomright', 
+           pch=1,lwd=2, legend = c('Rate','Time to clearance'),
+           col=c('black','pink'),
+           inset = 0.03)
+    mtext(text = 'B - 7 days follow-up',side = 3,adj = 0,line = 1.5,cex = 1.3)
+
+  } else {
+    mtext(text = 'C - 5 days follow-up',side = 3,adj = 0,line = 1.5,cex = 1.3)
+
+  }
+}
+
+legend('bottomright', 
+       pch=15:16, legend = c('30%','50%'),lty=2:3,lwd=1,
+       title = expression(paste(beta, ' and ', alpha, ' increase (%)')),
+       inset = 0.03)
 ```
 
 

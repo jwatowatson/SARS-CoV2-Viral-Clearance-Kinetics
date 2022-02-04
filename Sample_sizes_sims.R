@@ -12,7 +12,7 @@ load('Rout/mod_2.RData')
 thetas_mod2 = extract(out_mod2)
 
 t_designs = list(t2 = sort(rep(0:7, 2)),
-                 t2 = sort(rep(0:5, 1)))
+                 t2 = sort(rep(0:5, 2)))
 
 Ns = c(15,30,50)
 Nsim = 200
@@ -27,7 +27,7 @@ sims = expand.grid(N = Ns,
 
 
 sim_path = 'Rout/power_matrix.RData'
-RUN_SIMS=T
+RUN_SIMS=F
 
 
 tic()
@@ -110,7 +110,7 @@ sims = expand.grid(N = Ns,
                    t_design = 1:length(t_designs))
 
 sim_path = 'Rout/power_matrix_TTC.RData'
-RUN_SIMS=T
+RUN_SIMS=F
 
 tic()
 if(RUN_SIMS){
