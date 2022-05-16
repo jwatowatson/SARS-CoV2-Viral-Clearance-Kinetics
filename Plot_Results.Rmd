@@ -1,0 +1,591 @@
+---
+title: "Viral clearance"
+author: "James Watson"
+date: "20/01/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, cache.comments = FALSE,
+                      echo = F, include = TRUE, 
+                      fig.width = 8, fig.height = 8,
+                      fig.pos = 'H',dev = 'png', dpi = 300)
+
+library(rstan)
+library(matrixStats)
+library(mgcv)
+library(survival)
+```
+
+
+This RMarkdown plots the output of the model fits and simulations
+
+```{r load_data_model_fits}
+# this loads dataset and runs stan models
+source('functions.R')
+source('run_models.R')
+writeLines(sprintf('There are a total of %s infection episodes', length(unique(CT_data$PersonID))))
+
+range(table(CT_data$PersonID))
+median(table(CT_data$PersonID))
+
+IDs = as.numeric(names(which(sort(table(CT_data$PersonID))>2)))
+
+D_maxs = c(5,7,14)
+D_min = 0
+```
+
+
+## Time to clearance
+
+There are multiple ways to define time to clearance. We use time to first CT value equal to 40.
+
+```{r time_to_clear}
+CT_data$ID = CT_data$PersonID
+CT_data$Trt_effect = CT_data$Vaccinated
+CT_data$Day = round(CT_data$time)
+
+CT_data_time_clear = 
+  time_to_clear(log10_vl = CT_data$log10_vl,
+                time = CT_data$time,
+                Trt_effect = CT_data$Vaccinated, 
+                ID = CT_data$ID,
+                log10_cens_vl = unique(CT_data$log10_cens_vl))
+hist(CT_data_time_clear$time_to_clear)
+```
+
+
+## Model of viral clearance
+
+```{r}
+cens_val = unique(CT_data$log10_cens_vl)
+preds_mod1 = ifelse(colMeans(thetas_mod1$pred_log10_vl)<=cens_val,
+                    cens_val,
+                    colMeans(thetas_mod1$pred_log10_vl))
+preds_mod2 = ifelse(colMeans(thetas_mod2$pred_log10_vl)<cens_val,
+                    cens_val,colMeans(thetas_mod2$pred_log10_vl))
+```
+
+
+
+Plot data - patients with known vaccination status
+
+```{r Fig3, fig.width=10}
+cols = RColorBrewer::brewer.pal(n=5, 'Paired')[c(2,5)]
+par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3, mfrow=c(1,2))
+out_surv=survfit(Surv(time_to_clear, clearance_event) ~ Trt_effect,
+                 data = CT_data_time_clear)
+plot(out_surv, conf.int=T, col=cols,lwd=2,
+     xlab='Days since peak viral load',
+     ylab='Proportion still positive')
+grid()
+mtext(text = 'A',side = 3,adj = 0,line = 1.5,cex = 1.3)
+legend('bottomleft', col=cols,inset=0.03,
+       lwd=3,legend = c('Not vaccinated','Vaccinated'))
+out=survdiff(Surv(time_to_clear, clearance_event) ~ Trt_effect,
+             data = CT_data_time_clear)
+out$chisq
+
+plot(CT_data$time, CT_data$log10_vl,
+     ylim = c(0, 8), xlab='Days since peak viral load',
+     ylab='RNA copies per mL', panel.first=grid(), col=CT_data$Trt_effect+1)
+mtext(text = 'B',side = 3,adj = 0,line = 1.5,cex = 1.3)
+for(id in unique(CT_data$PersonID)){
+  ind = CT_data$PersonID==id
+  lines(CT_data$time[ind], 
+        CT_data$log10_vl[ind], col=adjustcolor(cols[CT_data$Trt_effect[ind]+1],.6))
+}
+
+xx = aggregate(log10_vl~Day+Trt_effect, CT_data, median)
+points(xx$Day[xx$Trt_effect==0], xx$log10_vl[xx$Trt_effect==0], pch=17, cex=1.5, col='darkblue')
+points(xx$Day[xx$Trt_effect==1], xx$log10_vl[xx$Trt_effect==1],
+       pch=17, cex=1.5,col='red')
+legend('topright', title = 'Median daily value',
+       legend = c('Not vaccinated', 'Vaccinated'),
+       pch=17, col= c('darkblue','red'), inset=0.03)
+```
+
+
+## Spline fits
+
+mgcv 
+
+```{r gam_fits}
+AUC_gam = array(dim = c(length(unique(CT_data$PersonID)), length(D_maxs)))
+dat=data.frame(time = stan_data1$obs_day, 
+               y=stan_data1$log_10_vl, 
+               ID=as.factor(stan_data1$id))
+mod_gam = gam(y ~ s(time) + s(ID, bs='re'), data = dat)
+stan_data1$preds_gam = predict(mod_gam)
+
+plot(stan_data1$obs_day, stan_data1$log_10_vl-stan_data1$preds_gam)
+abline(h=0)
+
+for(id in unique(stan_data1$id)){
+  ind = which(stan_data1$id==id)
+  xs = seq(0,14, length.out = 100)
+  mypreds = predict(mod_gam,
+                    data.frame(time=xs,ID=as.factor(id)))
+  mypreds = mypreds/mypreds[1]
+  ys = ifelse(mypreds<0, 0, mypreds)
+  f = approxfun(x = xs, y = ys)
+  for(ds in 1:length(D_maxs)){
+    AUC_gam[as.numeric(id),ds] = 
+      integrate(f = f, lower = D_min,
+                upper = D_maxs[ds])$value
+  }
+}
+```
+
+## Estimated parameters
+
+
+```{r parameter_estimates}
+par(las=1, family='serif', cex.lab=1.5, cex.axis=1.5,mfrow=c(4,3))
+cols = RColorBrewer::brewer.pal(n=3, 'Dark2')[1:2]
+
+# A0
+plot(density(thetas_mod1$intercept), main=expression('A'[0]),
+     xlab=expression(paste(Delta,'CT')), ylab='', yaxt='n', xlim = c(4, 6),
+     panel.first=grid(),lwd=3, col=cols[1])
+lines(density(thetas_mod2$intercept[,2]),lwd=3,lty=2, col=cols[2])
+
+# B0 - model 2 only
+plot(density(thetas_mod2$intercept[,1]), main=expression('B'[0]),
+     xlab=expression(paste(Delta,'CT')), ylab='', yaxt='n',
+     panel.first=grid(),lwd=3,lty=2, xlim = c(1, 4), col=cols[2])
+
+# alpha
+plot(density(thetas_mod1$coef), main=expression(alpha), 
+     xlab='Fold change per day (copies per mL)',
+     ylab='', yaxt='n', xlim = c(0.5,2.5),
+     panel.first=grid(),lwd=3, col=cols[1])
+lines(density(thetas_mod2$coef[,2]),lwd=3,lty=2, col=cols[2])
+
+# beta - model 2 only
+plot(density(thetas_mod2$coef[,1]), main=expression(beta), 
+     ylab='', yaxt='n', xlab='Change in CT per day',
+     panel.first=grid(),lwd=3,lty=2, xlim = c(.2, .5), col=cols[2])
+
+
+# sigma 
+plot(density(thetas_mod2$sigma_vl), main=expression(sigma),
+     xlab='log10 copies per mL', ylab='', 
+     yaxt='n', xlim = c(0.6, 1),
+     panel.first=grid(),lwd=3, lty=2, col=cols[2])
+lines(density(thetas_mod1$sigma_vl),lwd=3, col=cols[1])
+
+# degrees of freedom 
+plot(density(thetas_mod2$t_dof), main='k',
+     xlab='degrees of freedom', ylab='', 
+     yaxt='n', xlim = c(0, 15),
+     panel.first=grid(),lwd=3, lty=2, col=cols[2])
+lines(density(thetas_mod1$t_dof),lwd=3, col=cols[1])
+
+
+plot(density(thetas_mod1$sigmasq_u[,1]), main=expression(sigma[u1]),
+     xlab='CT', ylab='', yaxt='n', xlim = c(0, 1),
+     panel.first=grid(),lwd=3, col=cols[1])
+lines(density(thetas_mod2$sigmasq_u[,1]), lwd=3, lty=2, col=cols[2])
+
+plot(density(thetas_mod1$sigmasq_u[,2]), main=expression(sigma[u2]),
+     xlab='CT', ylab='', yaxt='n', xlim = c(0, 1),
+     panel.first=grid(),lwd=3, col=cols[1])
+lines(density(thetas_mod2$sigmasq_u[,2]),lwd=3, lty=2, col=cols[2])
+
+plot(density(thetas_mod2$sigmasq_u[,3]), main=expression(sigma[u3]),
+     xlab='CT', ylab='', yaxt='n', xlim = c(0, 7),
+     panel.first=grid(),lwd=3,lty=2, col=cols[2])
+
+plot(density(thetas_mod2$sigmasq_u[,4]), main=expression(sigma[u4]),
+     xlab='CT', ylab='', yaxt='n', xlim = c(0, 1),
+     panel.first=grid(),lwd=3,lty=2, col=cols[2])
+```
+
+
+
+
+
+## Figure 1 - model fits
+
+```{r Fig1}
+mycols = RColorBrewer::brewer.pal(n=4, 'Dark2')
+par(las=1, family='serif', cex.lab=1.5, cex.axis=1.5)
+layout(mat = matrix(c(1,1,1,2,3,4),nrow = 2,byrow = T))
+plot(CT_data$time, CT_data$log10_vl,yaxt='n',
+     ylim = c(0, 8), xlab='Time since peak (days)',
+     ylab='RNA copies per mL', panel.first=grid())
+mtext(text = 'a',side = 3,adj = 0,line = 1.5,cex = 1.3)
+for(id in unique(CT_data$PersonID)){
+  ind = CT_data$PersonID==id
+  lines(CT_data$time[ind], 
+        CT_data$log10_vl[ind], col=adjustcolor('grey',.4))
+}
+axis(2, at = c(2,4,6,8), labels = c(expression(10^2),
+                                    expression(10^4),
+                                    expression(10^6),
+                                    expression(10^8)))
+
+xs = seq(0,14,length.out = 100)
+preds1 = mean(thetas_mod1$intercept) - mean(thetas_mod1$coef)*xs
+lines(xs, preds1, lwd=4, col=mycols[1])
+
+preds2 = 
+  apply(cbind(mean(thetas_mod2$intercept[,1])-
+                mean(thetas_mod2$coef[,1])*xs,
+              mean(thetas_mod2$intercept[,2])-
+                mean(thetas_mod2$coef[,2])*xs),1,logSumExp)
+lines(xs, preds2, lwd=4, col=mycols[2],lty=2)
+
+preds3=predict(mod_gam, data.frame(time = xs, ID=-1), re.effect=NA)
+lines(xs, preds3, lwd=4, col=mycols[3],lty=3)
+
+xx = aggregate(log10_vl~Day, CT_data, median)
+points(xx$Day, xx$log10_vl, pch=17, cex=2, col=mycols[4])
+
+legend('topright',lwd=c(3,3,3,NA), 
+       col=mycols,lty=c(1:3,NA),
+       pch=c(NA,NA,NA,17), inset = 0.03, cex=1.3,
+       legend = c('Exponential','Bi-exponential','Spline','Observed median'))
+
+boxplot(stan_data1$log_10_vl-preds_mod1 ~ round(stan_data1$obs_day), 
+        ylim = c(-2,2),xlab='Time since peak (days)',ylab='Residual error (log10 scale)',
+        main='',panel.first=grid())
+mtext(text = 'b: exponential',side = 3,adj = 0,line = 1.5,cex = 1.3)
+
+
+boxplot(stan_data1$log_10_vl-preds_mod2 ~ round(stan_data1$obs_day),
+        xlab='Time since peak (days)',ylab='Residual error (log10 scale)',
+        main='',ylim = c(-2,2),panel.first=grid())
+mtext(text = 'c: bi-exponential',side = 3,adj = 0,line = 1.5,cex = 1.3)
+
+boxplot(stan_data1$log_10_vl-stan_data1$preds_gam~round(stan_data1$obs_day),
+        xlab='Time since peak (days)',ylab='Residual error (log10 scale)',
+        main='',ylim = c(-2,2),panel.first=grid())
+mtext(text = 'd: spline regression',side = 3,adj = 0,line = 1.5,cex = 1.3)
+```
+
+
+Individual fits data 1 - we pick the individuals with the most data
+
+```{r data1_individual_fits}
+IDs_dense = as.numeric(names(which(sort(table(stan_data1$id))>=10)))
+par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3)
+xs = seq(0,14, length.out = 100)
+par(mfrow=c(4,4), mar=c(3,3,1,1),las=1)
+for(id in IDs_dense){
+  ind = which(stan_data1$id==id)
+  plot(stan_data1$obs_day[ind], 
+       stan_data1$log_10_vl[ind],
+       ylim=c(0,8),
+       xlab='', ylab='', main='', xaxt='n',yaxt='n',
+       xlim=c(0,Max_Day), panel.first=grid())
+  
+  # Model 1
+  intercept = median(thetas_mod1$intercept + thetas_mod1$theta_rand[,id,1])
+  alpha = median(thetas_mod1$coef * exp(thetas_mod1$theta_rand[,id,2]))
+  lines(xs, (intercept - alpha*xs), lty=1,lwd=2, col=mycols[1]) 
+  
+  # Model 2
+  intercept1 = median(thetas_mod2$intercept[,2] + thetas_mod2$theta_rand[,id,1])
+  intercept2 = median(thetas_mod2$intercept[,1] + thetas_mod2$theta_rand[,id,3])
+  alpha = median(thetas_mod2$coef[,2]*exp(thetas_mod2$theta_rand[,id,2]))
+  beta = median(thetas_mod2$coef[,1]*exp(thetas_mod2$theta_rand[,id,4]))
+  ys = cbind(intercept1 - alpha*xs, intercept2 - beta*xs)
+  preds = apply(ys, 1, logSumExp)
+  lines(xs, preds,lwd=2,lty=2, col=mycols[2])
+  
+  # Spline model
+  mypreds = predict(mod_gam,
+                    data.frame(time=xs,ID=as.factor(id)))
+  lines(xs, mypreds,lwd=2,lty=3, col=mycols[3])
+  
+  points(stan_data1$obs_day[ind],
+         stan_data1$log_10_vl[ind],
+         col=1, pch=16)
+  axis(1, at = c(0,7,14))
+  axis(2, at = c(2,4,6,8), labels = c(expression(10^2),
+                                      expression(10^4),
+                                      expression(10^6),
+                                      expression(10^8)))
+  
+}
+```
+
+
+
+
+## Compute area under the curve
+
+```{r auc, echo=F}
+AUC_mod1 = AUC_mod2 = array(dim = c(stan_data1$n_id, length(D_maxs)))
+FC_mod1 = FC_mod2 = array(dim = c(stan_data1$n_id, length(D_maxs)))
+Nsim = 300
+
+for(ds in 1:length(D_maxs)){
+  writeLines(sprintf('Doing D max = %s ....', D_maxs[ds]))
+  xs = seq(0,D_maxs[ds], length.out = 100)
+  for(i in 1:stan_data1$n_id){
+    # Model 0
+    fcs = aucs = array(dim = Nsim); my_ix=1
+    for(ss in sample(1:length(thetas_mod1$t_dof), Nsim, replace = F)){
+      intercept = thetas_mod1$intercept[ss] + thetas_mod1$theta_rand[ss,i,1]
+      alpha = thetas_mod1$coef[ss]*exp(thetas_mod1$theta_rand[ss,i,2])
+      fcs[my_ix] = -alpha*D_maxs[ds]
+      preds = 1 - alpha*xs/intercept # normalise by intercept
+      f = approxfun(x = xs, y = ifelse(preds<0,0,preds))
+      aucs[my_ix] = integrate(f = f, lower = D_min, upper = D_maxs[ds])$value
+      my_ix=my_ix+1
+    }
+    AUC_mod1[i,ds] = median(aucs)
+    FC_mod1[i,ds] = median(fcs)
+    
+    # Model 1
+    fcs = aucs = array(dim = Nsim); my_ix=1
+    for(ss in sample(1:length(thetas_mod2$t_dof), Nsim, replace = F)){
+      
+      intercept1 = thetas_mod2$intercept[ss,2] + thetas_mod2$theta_rand[ss,i,1]
+      intercept2 = thetas_mod2$intercept[ss,1] + thetas_mod2$theta_rand[ss,i,3]
+      alpha = thetas_mod2$coef[ss,2]*exp(thetas_mod2$theta_rand[ss,i,2])
+      beta = thetas_mod2$coef[ss,1]*exp(thetas_mod2$theta_rand[ss,i,4])
+      fcs[my_ix] = 
+        logSumExp(c(intercept1, intercept2))-
+        logSumExp(c(intercept1-alpha*D_maxs[ds],
+                    intercept2-beta*D_maxs[ds]))
+      ys = cbind(intercept1 - alpha*xs, intercept2 - beta*xs)
+      preds = apply(ys, 1, logSumExp)
+      preds_mod1 = preds/preds[1]
+      f = approxfun(x = xs, y = ifelse(preds_mod1<0,0,preds_mod1))
+      aucs[my_ix] = integrate(f = f, lower = D_min, D_maxs[ds])$value
+      my_ix=my_ix+1
+    }
+    AUC_mod2[i,ds] = median(aucs)
+    FC_mod2[i,ds] = median(fcs)
+  }
+}
+```
+
+
+Reduction in AUCs
+
+```{r Fig2}
+vacc_ind = unique(stan_data1$id[which(stan_data1$vacc==1)])
+not_vacc_ind = unique(stan_data1$id[which(stan_data1$vacc==0)])
+
+par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3)
+mycols = RColorBrewer::brewer.pal(n=3, 'Dark2')
+plot(NA, NA, xlim = c(4, 15), ylim = c(-35,5),xaxt='n',
+     xlab = 'Days follow-up for AUC', panel.first=grid(),
+     ylab = 'Reduction in AUC: vaccinated versus not vaccinated')
+axis(1, at = D_maxs)
+abline(h=0, lty=2)
+for(ds in 1:length(D_maxs)){
+  out=(t.test(AUC_mod1[not_vacc_ind,ds], AUC_mod1[vacc_ind,ds]))
+  points(D_maxs[ds]-.2, diff(out$estimate)/out$estimate[1]*100,pch=1,col=mycols[1],cex=1.5)
+  lines(c(D_maxs[ds],D_maxs[ds])-.2,
+        -out$conf.int/out$estimate[1]*100,col=mycols[1],lwd=3)
+  writeLines(sprintf('Model 1: Wilcoxon test for AUC up to day %s: p= %s',D_maxs[ds], wilcox.test(AUC_mod1[not_vacc_ind,ds],AUC_mod1[vacc_ind,ds])$p.value))
+  
+  out=(t.test(AUC_mod2[not_vacc_ind,ds], AUC_mod2[vacc_ind,ds]))
+  points(D_maxs[ds], diff(out$estimate)/out$estimate[1]*100,pch=2,col=mycols[2],cex=1.5)
+  lines(c(D_maxs[ds],D_maxs[ds]),
+        -out$conf.int/out$estimate[1]*100,col=mycols[2],lwd=3)
+  writeLines(sprintf('Model 2: Wilcoxon test for AUC up to day %s: p= %s',
+                     D_maxs[ds], 
+                     wilcox.test(AUC_mod2[not_vacc_ind,ds],
+                                 AUC_mod2[vacc_ind,ds])$p.value))
+  
+  out=(t.test(AUC_gam[not_vacc_ind,ds], AUC_gam[vacc_ind,ds]))
+  points(D_maxs[ds]+.2, diff(out$estimate)/out$estimate[1]*100,pch=3,col=mycols[3],cex=1.5)
+  lines(c(D_maxs[ds]+.2,D_maxs[ds]+.2),
+        -out$conf.int/out$estimate[1]*100,col=mycols[3],lwd=3)
+}
+legend('bottomleft', inset=0.03, 
+       legend = c('Exponential','Bi-exponential','Spline'),
+       pch = 1:3, lwd=2, col=mycols)
+```
+
+
+
+```{r}
+par(mfrow = c(2,2))
+hist(colMeans(thetas_mod1$theta_rand[,not_vacc_ind,2]), breaks=seq(-1.5,1.5,by=.25))
+hist(colMeans(thetas_mod1$theta_rand[,vacc_ind,2]), breaks=seq(-1.5,1.5,by=.25))
+
+t.test(colMeans(thetas_mod1$theta_rand[,not_vacc_ind,2]),
+       colMeans(thetas_mod1$theta_rand[,vacc_ind,2]))
+
+```
+
+
+
+## Variants and vaccines
+
+effect of variant
+
+```{r variant_effect, fig.width=8, fig.height=6}
+par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3)
+par(mfrow=c(1,2),las=1)
+ind_unique = !duplicated(stan_data1$id)
+table(stan_data1$variant[ind_unique])
+
+boxplot(apply(thetas_mod1$theta_rand[,,2],2,mean) ~ stan_data1$variant[ind_unique],
+        xlab='',las=2,
+        ylab = 'Slope difference',varwidth=T)
+
+
+boxplot(apply(thetas_mod2$theta_rand[,,2],2,mean) ~ stan_data1$variant[ind_unique],
+        xlab='',las=2,
+        ylab = 'Slope difference',varwidth=T)
+```
+
+
+effect of vaccine
+
+```{r vaccine_effect, fig.width=8, fig.height=6}
+par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3)
+par(mfrow=c(1,2),las=1)
+table(stan_data1$vacc[ind_unique])
+
+boxplot(apply(thetas_mod1$theta_rand[,,2],2,mean) ~ stan_data1$vacc[ind_unique],xlab='Vaccinated',
+        ylab = 'Slope difference',varwidth=T)
+
+boxplot(apply(thetas_mod2$theta_rand[,,2],2,mean) ~ stan_data1$vacc[ind_unique],
+        xlab='Vaccinated',ylab = 'Slope difference',varwidth=T)
+
+plot(stan_data1$obs_day, stan_data1$log_10_vl,
+     xlim=c(0,7), ylim=c(0,8), type='n',main='Exponential',
+     xlab='Days since peak viral load',ylab='CT',
+     panel.first=grid())
+for(i in 1:stan_data1$n_id){
+  # Model 0
+  intercept = mean(thetas_mod1$intercept + thetas_mod1$theta_rand[,i,1])
+  alpha = mean(thetas_mod1$coef + exp(thetas_mod1$theta_rand[,i,2]))
+  preds = 1 - alpha*xs/intercept
+  vacc = stan_data1$vacc[ind_unique][i]
+  if(!is.na(vacc)){
+    if(vacc==0) {mycol = 'grey';mylty=2} else {mycol = 'red';mylty=2}
+    lines(xs, preds*intercept, col = mycol,lty=mylty,lwd=2)
+  }
+}
+legend('topright',col=c('grey','red'),inset = 0.03,lty=c(2,1),
+       legend = c('Not vaccinated','Vaccinated'),lwd=2)
+
+plot(stan_data1$obs_day, stan_data1$log_10_vl,
+     xlim=c(0,7), ylim=c(0,8), type='n',main='Bi-exponential',
+     xlab='Days since peak viral load',ylab='CT',
+     panel.first=grid())
+for(i in 1:stan_data1$n_id){
+  # Model 1
+  intercept = mean(thetas_mod2$intercept + thetas_mod2$theta_rand[,i,1])
+  intercept = mean(thetas_mod2$intercept + thetas_mod2$theta_rand[,i,3])
+  alpha = mean(thetas_mod2$coef[,1] + exp(thetas_mod2$theta_rand[,i,2]))
+  beta = mean(thetas_mod2$coef[,2] + exp(thetas_mod2$theta_rand[,i,4]))
+  ys = cbind(intercept - alpha*xs, intercept - beta*xs)
+  preds = apply(ys, 1, logSumExp)
+  vacc = stan_data1$vacc[ind_unique][i]
+  if(!is.na(vacc)){
+    
+    if(vacc==0) {mycol = 'grey';mylty=2} else {mycol = 'red';mylty=1}
+    lines(xs, preds, col = mycol,lty=mylty,lwd=2)
+  }
+}
+
+```
+
+
+## Sample size estimation
+
+```{r Fig4, fig.height=7, fig.width=8}
+res = read.csv('Rout/all_sims_RateClearance.csv')
+
+res2 = read.csv('Rout//all_sims_TimeToClear.csv')
+res2$power = as.numeric(res2$pval< 0.025)
+thetas_mod2 = extract(out_mod2)
+set.seed(75873426)
+
+# simulate data to illustrate underlying simulation process
+sim_vl1 =
+      sim_individuals(thetas = thetas_mod2,
+                      t_design = seq(0,7,length.out = 20),
+                      Trt_effect = c(rep(1,1000),rep(1.5,1000)),
+                      p_before_peak = 1,
+                      LOD = 1)
+sim_vl2 =
+      sim_individuals(thetas = thetas_mod2,
+                      t_design = seq(0,7,length.out = 20),
+                      Trt_effect = c(rep(1,1000),rep(1.5,1000)),
+                      p_before_peak = 0,
+                      LOD = 1)
+xx_1 = aggregate(True_Log_VL ~ time+Trt_effect, sim_vl1, mean)
+xx_2 = aggregate(True_Log_VL ~ time+Trt_effect, sim_vl2, mean)
+ind1 = xx_1$Trt_effect==1
+ind2 = xx_2$Trt_effect==1
+
+
+par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3)
+layout(mat = matrix(c(1,2,1,3),nrow = 2,byrow = T))
+
+col_peak = RColorBrewer::brewer.pal(n = 8,name = 'Set2')[c(8,6)]
+plot(xx_1$time[ind1], xx_1$True_Log_VL[ind1], type='l',
+     xlab='Time since enrolment (days)', ylab='RNA copies per mL',
+     panel.first=grid(), yaxt='n',lwd=2,col=col_peak[1])
+lines(xx_1$time[!ind1], xx_1$True_Log_VL[!ind1],lty=2,lwd=2,col=col_peak[1])
+
+lines(xx_2$time[!ind2], xx_2$True_Log_VL[!ind2],lty=2,lwd=2,col=col_peak[2])
+lines(xx_2$time[ind2], xx_2$True_Log_VL[ind2],lwd=2,col=col_peak[2])
+legend('topright',col=c(col_peak,1,1),lwd=2,lty = c(1,1,1,2),legend = c('Before peak','After peak','No drug','Drug (50% increase)'),inset = 0.03)
+axis(2, at = c(2,3,4,5), labels = c(expression(10^2),
+                                    expression(10^3),
+                                    expression(10^4),
+                                    expression(10^5)))
+
+mtext(text = 'a', side = 3,line = 1.5, adj = 0, cex = 1.3)
+t_names = c('Twice daily (7d)',
+            'Twice daily (5d)',
+            'Once daily (7d)',
+            'Once daily (5d)')
+my_titles = c('b','c')
+my_lty = c(1,2,1,2)
+cols = RColorBrewer::brewer.pal(n = 8,
+                                name = 'Dark2')[c(1,2,4,8)]
+
+for(tt in c(1.3,1.5)){
+  xx=aggregate(power ~ N + t_design,
+               data = res[res$effect==tt, ], mean)
+  plot(xx$N, 100*xx$power, ylim = c(0,100),
+       panel.first=grid(),col = cols[xx$t_design],pch=16,
+       xlab= ' Sample size (per arm)', ylab = 'Power (%)')
+  for(j in unique(xx$t_design)){
+    ind = xx$t_design==j
+    lines(xx$N[ind], 100*xx$power[ind], 
+          col = cols[j],lwd=2)
+  }
+  
+  xx2=aggregate(power ~ N + t_design,
+               data = res2[res2$effect==tt, ], mean)
+  for(j in unique(xx2$t_design)){
+    ind = xx2$t_design==j
+    lines(xx2$N[ind], 100*xx2$power[ind], 
+          col = cols[j],lwd=2, lty=2)
+  }
+  mtext(text = my_titles[which(tt==unique(res$effect))], 
+        side = 3,line = 1.5, adj = 0, cex = 1.3)
+  if(tt==1.3){
+    
+legend('topleft', legend = c('Rate of clearance','Time to clearance'),
+       lty=1:2,col = 1, inset=0.03,lwd=2)
+  }
+}
+legend('bottomright', legend = t_names,
+       col = cols, inset=0.03,lwd=2)
+
+
+aggregate(power ~ effect, data = res, mean)
+aggregate(power ~ t_design, data = res[res$effect>1,], mean)
+
+table(aggregate(power ~ t_design+effect+N,res,mean))
+table(aggregate(power ~ t_design+effect+N,res2,mean))
+```
+
+
