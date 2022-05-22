@@ -79,7 +79,7 @@ plot(out_surv, conf.int=T, col=cols,lwd=2,
      xlab='Days since peak viral load',
      ylab='Proportion still positive')
 grid()
-mtext(text = 'A',side = 3,adj = 0,line = 1.5,cex = 1.3)
+mtext(text = 'a',side = 3,adj = 0,line = 1.5,cex = 1.3)
 legend('bottomleft', col=cols,inset=0.03,
        lwd=3,legend = c('Not vaccinated','Vaccinated'))
 out=survdiff(Surv(time_to_clear, clearance_event) ~ Trt_effect,
@@ -88,8 +88,13 @@ out$chisq
 
 plot(CT_data$time, CT_data$log10_vl,
      ylim = c(0, 8), xlab='Days since peak viral load',
-     ylab='RNA copies per mL', panel.first=grid(), col=CT_data$Trt_effect+1)
-mtext(text = 'B',side = 3,adj = 0,line = 1.5,cex = 1.3)
+     ylab='RNA copies per mL', yaxt='n',
+     panel.first=grid(), col=CT_data$Trt_effect+1)
+axis(2, at = c(2,4,6,8), labels = c(expression(10^2),
+                                      expression(10^4),
+                                      expression(10^6),
+                                      expression(10^8)))
+mtext(text = 'b',side = 3,adj = 0,line = 1.5,cex = 1.3)
 for(id in unique(CT_data$PersonID)){
   ind = CT_data$PersonID==id
   lines(CT_data$time[ind], 
@@ -498,7 +503,6 @@ for(i in 1:stan_data1$n_id){
 
 ```{r Fig4, fig.height=7, fig.width=8}
 res = read.csv('Rout/all_sims_RateClearance.csv')
-
 res2 = read.csv('Rout//all_sims_TimeToClear.csv')
 res2$power = as.numeric(res2$pval< 0.025)
 thetas_mod2 = extract(out_mod2)
@@ -545,7 +549,7 @@ t_names = c('Twice daily (7d)',
             'Twice daily (5d)',
             'Once daily (7d)',
             'Once daily (5d)')
-my_titles = c('b','c')
+my_titles = c('b - 30% increase','c - 50% increase')
 my_lty = c(1,2,1,2)
 cols = RColorBrewer::brewer.pal(n = 8,
                                 name = 'Dark2')[c(1,2,4,8)]
@@ -584,8 +588,8 @@ legend('bottomright', legend = t_names,
 aggregate(power ~ effect, data = res, mean)
 aggregate(power ~ t_design, data = res[res$effect>1,], mean)
 
-table(aggregate(power ~ t_design+effect+N,res,mean))
-table(aggregate(power ~ t_design+effect+N,res2,mean))
+range(aggregate(power ~ t_design+effect+N,res,length)$power)
+table(aggregate(power ~ t_design+effect+N,res2,length)$power)
 ```
 
 
