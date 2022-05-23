@@ -189,17 +189,18 @@ lines(density(thetas_mod1$t_dof),lwd=3, col=cols[1])
 
 
 plot(density(thetas_mod1$sigmasq_u[,1]), main=expression(sigma[u1]),
-     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(0, 1),
+     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(0.5, 1.2),
      panel.first=grid(),lwd=3, col=cols[1])
 lines(density(thetas_mod2$sigmasq_u[,1]), lwd=3, lty=2, col=cols[2])
 
 plot(density(thetas_mod1$sigmasq_u[,2]), main=expression(sigma[u2]),
-     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(0, 1),
+     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(0.2, .7),
      panel.first=grid(),lwd=3, col=cols[1])
 lines(density(thetas_mod2$sigmasq_u[,2]),lwd=3, lty=2, col=cols[2])
 
 plot(density(thetas_mod2$sigmasq_u[,3]), main=expression(sigma[u3]),
-     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(0, 7),
+     xlab='copies per mL (log10)', ylab='', 
+     yaxt='n', xlim = c(0, 3),
      panel.first=grid(),lwd=3,lty=2, col=cols[2])
 
 plot(density(thetas_mod2$sigmasq_u[,4]), main=expression(sigma[u4]),
@@ -208,6 +209,125 @@ plot(density(thetas_mod2$sigmasq_u[,4]), main=expression(sigma[u4]),
 ```
 
 
+
+Sensitivity analysis model 1
+
+```{r sens_mod1}
+thetas_mod1_sens = extract(out_mod1_sens)
+par(las=1, family='serif', cex.lab=1.5, cex.axis=1.5,mfrow=c(2,3))
+# A0
+plot(density(thetas_mod1$intercept), main=expression('A'[0]),
+     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(4.5, 5.5),
+     panel.first=grid(),lwd=3, col=cols[1])
+lines(density(thetas_mod1_sens$intercept))
+
+# alpha
+plot(density(thetas_mod1$coef), main=expression(alpha), 
+     xlab='Slope',
+     ylab='', yaxt='n', xlim = c(0.5,0.7),
+     panel.first=grid(),lwd=3, col=cols[1])
+lines(density(thetas_mod1_sens$coef))
+
+
+# sigma 
+plot(density(thetas_mod1$sigma_vl), main=expression(sigma),
+     xlab='copies per mL (log10)', ylab='', 
+     yaxt='n', xlim = c(0.8, 1),
+     panel.first=grid(),lwd=3, col=cols[1])
+lines(density(thetas_mod1_sens$sigma_vl))
+
+# degrees of freedom 
+plot(density(thetas_mod1$t_dof), main='k',
+     xlab='degrees of freedom', ylab='', 
+     yaxt='n', xlim = c(4, 12),
+     panel.first=grid(),lwd=3,col=cols[1])
+lines(density(thetas_mod1_sens$t_dof))
+
+
+plot(density(thetas_mod1$sigmasq_u[,1]), main=expression(sigma[u1]),
+     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(0.5, 1.2),
+     panel.first=grid(),lwd=3, col=cols[1])
+lines(density(thetas_mod1_sens$sigmasq_u[,1]))
+
+plot(density(thetas_mod1$sigmasq_u[,2]), main=expression(sigma[u2]),
+     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(0.2, .7),
+     panel.first=grid(),lwd=3, col=cols[1])
+lines(density(thetas_mod1_sens$sigmasq_u[,2]))
+```
+
+
+Sensitivity analysis model 2
+
+```{r sens_mod2}
+thetas_mod2_sens = extract(out_mod2_sens)
+
+par(las=1, family='serif', cex.lab=1.5, cex.axis=1.5,mfrow=c(4,3))
+
+# A0
+plot(density(thetas_mod2$intercept[,2]), main=expression('A'[0]),
+     xlab='copies per mL (log10)', ylab='', 
+     yaxt='n', xlim = c(5, 6),lty=2,
+     panel.first=grid(),lwd=3, col=cols[2])
+lines(density(thetas_mod2_sens$intercept[,2]))
+
+# B0 - model 2 only
+plot(density(thetas_mod2$intercept[,1]), main=expression('B'[0]),
+     xlab='copies per mL (log10)', ylab='', yaxt='n',
+     panel.first=grid(),lwd=3,lty=2, xlim = c(0, 3), col=cols[2])
+lines(density(thetas_mod2_sens$intercept[,1]))
+
+# alpha
+plot(density(thetas_mod2$coef[,2]), main=expression(alpha), 
+     xlab='Slope',lty=2,
+     ylab='', yaxt='n', xlim = c(0.8,1.3),
+     panel.first=grid(),lwd=3, col=cols[2])
+lines(density(thetas_mod2_sens$coef[,2]))
+
+# beta - model 2 only
+plot(density(thetas_mod2$coef[,1]), main=expression(beta), 
+     ylab='', yaxt='n', xlab='Slope',
+     panel.first=grid(),lwd=3,lty=2, xlim = c(0, .4), col=cols[2])
+lines(density(thetas_mod2_sens$coef[,1]))
+
+
+# sigma 
+plot(density(thetas_mod2$sigma_vl), main=expression(sigma),
+     xlab='copies per mL (log10)', ylab='', 
+     yaxt='n', xlim = c(0.6, .82),
+     panel.first=grid(),lwd=3, lty=2, col=cols[2])
+lines(density(thetas_mod2_sens$sigma_vl))
+
+# degrees of freedom 
+plot(density(thetas_mod2$t_dof), main='k',
+     xlab='degrees of freedom', ylab='', 
+     yaxt='n', xlim = c(3, 9),
+     panel.first=grid(),lwd=3, lty=2, col=cols[2])
+lines(density(thetas_mod2_sens$t_dof))
+
+
+plot(density(thetas_mod2$sigmasq_u[,1]), main=expression(sigma[u1]),
+     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(0.5, 1.2),
+     panel.first=grid(),lwd=3, col=cols[2],lty=2)
+lines(density(thetas_mod2_sens$sigmasq_u[,1]))
+
+plot(density(thetas_mod2$sigmasq_u[,2]), main=expression(sigma[u2]),
+     xlab='copies per mL (log10)', ylab='',
+     yaxt='n', xlim = c(0.2, .7),
+     panel.first=grid(),lwd=3, lty=2, col=cols[2])
+lines(density(thetas_mod2_sens$sigmasq_u[,2]))
+
+plot(density(thetas_mod2$sigmasq_u[,3]), main=expression(sigma[u3]),
+     xlab='copies per mL (log10)', ylab='', 
+     yaxt='n', xlim = c(0, 3),
+     panel.first=grid(),lwd=3,lty=2, col=cols[2])
+lines(density(thetas_mod2_sens$sigmasq_u[,3]))
+
+plot(density(thetas_mod2$sigmasq_u[,4]), main=expression(sigma[u4]),
+     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(0, 1),
+     panel.first=grid(),lwd=3,lty=2, col=cols[2])
+lines(density(thetas_mod2_sens$sigmasq_u[,4]))
+
+```
 
 
 
