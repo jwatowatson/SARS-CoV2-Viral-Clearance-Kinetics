@@ -151,31 +151,31 @@ cols = RColorBrewer::brewer.pal(n=3, 'Dark2')[1:2]
 
 # A0
 plot(density(thetas_mod1$intercept), main=expression('A'[0]),
-     xlab=expression(paste(Delta,'CT')), ylab='', yaxt='n', xlim = c(4, 6),
+     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(4.5, 6),
      panel.first=grid(),lwd=3, col=cols[1])
 lines(density(thetas_mod2$intercept[,2]),lwd=3,lty=2, col=cols[2])
 
 # B0 - model 2 only
 plot(density(thetas_mod2$intercept[,1]), main=expression('B'[0]),
-     xlab=expression(paste(Delta,'CT')), ylab='', yaxt='n',
-     panel.first=grid(),lwd=3,lty=2, xlim = c(1, 4), col=cols[2])
+     xlab='copies per mL (log10)', ylab='', yaxt='n',
+     panel.first=grid(),lwd=3,lty=2, xlim = c(0, 3), col=cols[2])
 
 # alpha
 plot(density(thetas_mod1$coef), main=expression(alpha), 
-     xlab='Fold change per day (copies per mL)',
-     ylab='', yaxt='n', xlim = c(0.5,2.5),
+     xlab='Slope',
+     ylab='', yaxt='n', xlim = c(0.5,1.2),
      panel.first=grid(),lwd=3, col=cols[1])
 lines(density(thetas_mod2$coef[,2]),lwd=3,lty=2, col=cols[2])
 
 # beta - model 2 only
 plot(density(thetas_mod2$coef[,1]), main=expression(beta), 
-     ylab='', yaxt='n', xlab='Change in CT per day',
-     panel.first=grid(),lwd=3,lty=2, xlim = c(.2, .5), col=cols[2])
+     ylab='', yaxt='n', xlab='Slope',
+     panel.first=grid(),lwd=3,lty=2, xlim = c(0, .4), col=cols[2])
 
 
 # sigma 
 plot(density(thetas_mod2$sigma_vl), main=expression(sigma),
-     xlab='log10 copies per mL', ylab='', 
+     xlab='copies per mL (log10)', ylab='', 
      yaxt='n', xlim = c(0.6, 1),
      panel.first=grid(),lwd=3, lty=2, col=cols[2])
 lines(density(thetas_mod1$sigma_vl),lwd=3, col=cols[1])
@@ -183,27 +183,27 @@ lines(density(thetas_mod1$sigma_vl),lwd=3, col=cols[1])
 # degrees of freedom 
 plot(density(thetas_mod2$t_dof), main='k',
      xlab='degrees of freedom', ylab='', 
-     yaxt='n', xlim = c(0, 15),
+     yaxt='n', xlim = c(4, 12),
      panel.first=grid(),lwd=3, lty=2, col=cols[2])
 lines(density(thetas_mod1$t_dof),lwd=3, col=cols[1])
 
 
 plot(density(thetas_mod1$sigmasq_u[,1]), main=expression(sigma[u1]),
-     xlab='CT', ylab='', yaxt='n', xlim = c(0, 1),
+     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(0, 1),
      panel.first=grid(),lwd=3, col=cols[1])
 lines(density(thetas_mod2$sigmasq_u[,1]), lwd=3, lty=2, col=cols[2])
 
 plot(density(thetas_mod1$sigmasq_u[,2]), main=expression(sigma[u2]),
-     xlab='CT', ylab='', yaxt='n', xlim = c(0, 1),
+     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(0, 1),
      panel.first=grid(),lwd=3, col=cols[1])
 lines(density(thetas_mod2$sigmasq_u[,2]),lwd=3, lty=2, col=cols[2])
 
 plot(density(thetas_mod2$sigmasq_u[,3]), main=expression(sigma[u3]),
-     xlab='CT', ylab='', yaxt='n', xlim = c(0, 7),
+     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(0, 7),
      panel.first=grid(),lwd=3,lty=2, col=cols[2])
 
 plot(density(thetas_mod2$sigmasq_u[,4]), main=expression(sigma[u4]),
-     xlab='CT', ylab='', yaxt='n', xlim = c(0, 1),
+     xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(0, 1),
      panel.first=grid(),lwd=3,lty=2, col=cols[2])
 ```
 

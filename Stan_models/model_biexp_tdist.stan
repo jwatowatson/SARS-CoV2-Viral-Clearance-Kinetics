@@ -12,6 +12,9 @@ data {
   real B0_prior;
   real coef_1_prior;
   real coef_2_prior;
+  
+  real<lower=0> prior_intercept_sd;
+  real<lower=0> prior_coef_sd;
 }
 
 transformed data {
@@ -55,13 +58,13 @@ model {
   t_dof ~ exponential(1);
 
   // covariance matrix - random effects
-  L_Omega ~ lkj_corr_cholesky(2);
+  L_Omega ~ lkj_corr_cholesky(1);
   for (i in 1:n_id) theta_rand[i] ~ multi_normal_cholesky(zeros, diag_pre_multiply(sigmasq_u, L_Omega));  
   
-  intercept[2] ~ normal(A0_prior,3) T[0,];
-  intercept[1] ~ normal(B0_prior,3) T[0,];
-  coef[2] ~ normal(coef_1_prior, 5);
-  coef[1] ~ normal(coef_2_prior, 5);
+  intercept[2] ~ normal(A0_prior,prior_intercept_sd);
+  intercept[1] ~ normal(B0_prior,prior_intercept_sd);
+  coef[2] ~ normal(coef_1_prior, prior_coef_sd);
+  coef[1] ~ normal(coef_2_prior, prior_coef_sd);
   
   //***** Likelihood *****
   // Non censored observations
