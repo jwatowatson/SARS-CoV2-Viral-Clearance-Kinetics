@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(cache = TRUE, cache.comments = FALSE,
                       echo = F, include = TRUE, 
                       fig.width = 8, fig.height = 8,
-                      fig.pos = 'H',dev = 'png', dpi = 300)
+                      fig.pos = 'H',dev = c('png','cairo_ps'))
 
 library(rstan)
 library(matrixStats)
@@ -72,7 +72,7 @@ Plot data - patients with known vaccination status
 
 ```{r Fig3, fig.width=10}
 cols = RColorBrewer::brewer.pal(n=5, 'Paired')[c(2,5)]
-par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3, mfrow=c(1,2))
+par(las=1, cex.lab=1.3, cex.axis=1.3, mfrow=c(1,2))
 out_surv=survfit(Surv(time_to_clear, clearance_event) ~ Trt_effect,
                  data = CT_data_time_clear)
 plot(out_surv, conf.int=T, col=cols,lwd=2,
@@ -146,7 +146,7 @@ for(id in unique(stan_data1$id)){
 
 
 ```{r parameter_estimates}
-par(las=1, family='serif', cex.lab=1.5, cex.axis=1.5,mfrow=c(4,3))
+par(las=1, cex.lab=1.5, cex.axis=1.5,mfrow=c(4,3))
 cols = RColorBrewer::brewer.pal(n=3, 'Dark2')[1:2]
 
 # A0
@@ -214,7 +214,7 @@ Sensitivity analysis model 1
 
 ```{r sens_mod1}
 thetas_mod1_sens = extract(out_mod1_sens)
-par(las=1, family='serif', cex.lab=1.5, cex.axis=1.5,mfrow=c(2,3))
+par(las=1, cex.lab=1.5, cex.axis=1.5,mfrow=c(2,3))
 # A0
 plot(density(thetas_mod1$intercept), main=expression('A'[0]),
      xlab='copies per mL (log10)', ylab='', yaxt='n', xlim = c(4.5, 5.5),
@@ -261,7 +261,7 @@ Sensitivity analysis model 2
 ```{r sens_mod2}
 thetas_mod2_sens = extract(out_mod2_sens)
 
-par(las=1, family='serif', cex.lab=1.5, cex.axis=1.5,mfrow=c(4,3))
+par(las=1, cex.lab=1.5, cex.axis=1.5,mfrow=c(4,3))
 
 # A0
 plot(density(thetas_mod2$intercept[,2]), main=expression('A'[0]),
@@ -335,7 +335,7 @@ lines(density(thetas_mod2_sens$sigmasq_u[,4]))
 
 ```{r Fig1}
 mycols = RColorBrewer::brewer.pal(n=4, 'Dark2')
-par(las=1, family='serif', cex.lab=1.5, cex.axis=1.5)
+par(las=1, cex.lab=1.5, cex.axis=1.5)
 layout(mat = matrix(c(1,1,1,2,3,4),nrow = 2,byrow = T))
 plot(CT_data$time, CT_data$log10_vl,yaxt='n',
      ylim = c(0, 8), xlab='Time since peak (days)',
@@ -395,7 +395,7 @@ Individual fits data 1 - we pick the individuals with the most data
 
 ```{r data1_individual_fits}
 IDs_dense = as.numeric(names(which(sort(table(stan_data1$id))>=10)))
-par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3)
+par(las=1, cex.lab=1.3, cex.axis=1.3)
 xs = seq(0,14, length.out = 100)
 par(mfrow=c(4,4), mar=c(3,3,1,1),las=1)
 for(id in IDs_dense){
@@ -497,7 +497,7 @@ Reduction in AUCs
 vacc_ind = unique(stan_data1$id[which(stan_data1$vacc==1)])
 not_vacc_ind = unique(stan_data1$id[which(stan_data1$vacc==0)])
 
-par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3)
+par(las=1, cex.lab=1.3, cex.axis=1.3)
 mycols = RColorBrewer::brewer.pal(n=3, 'Dark2')
 plot(NA, NA, xlim = c(4, 15), ylim = c(-35,5),xaxt='n',
      xlab = 'Days follow-up for AUC', panel.first=grid(),
@@ -549,7 +549,7 @@ t.test(colMeans(thetas_mod1$theta_rand[,not_vacc_ind,2]),
 effect of variant
 
 ```{r variant_effect, fig.width=8, fig.height=6}
-par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3)
+par(las=1, cex.lab=1.3, cex.axis=1.3)
 par(mfrow=c(1,2),las=1)
 ind_unique = !duplicated(stan_data1$id)
 table(stan_data1$variant[ind_unique])
@@ -568,7 +568,7 @@ boxplot(apply(thetas_mod2$theta_rand[,,2],2,mean) ~ stan_data1$variant[ind_uniqu
 effect of vaccine
 
 ```{r vaccine_effect, fig.width=8, fig.height=6}
-par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3)
+par(las=1, cex.lab=1.3, cex.axis=1.3)
 par(mfrow=c(1,2),las=1)
 table(stan_data1$vacc[ind_unique])
 
@@ -647,7 +647,7 @@ ind1 = xx_1$Trt_effect==1
 ind2 = xx_2$Trt_effect==1
 
 
-par(las=1, family='serif', cex.lab=1.3, cex.axis=1.3)
+par(las=1, cex.lab=1.3, cex.axis=1.3)
 layout(mat = matrix(c(1,2,1,3),nrow = 2,byrow = T))
 
 col_peak = RColorBrewer::brewer.pal(n = 8,name = 'Set2')[c(8,6)]
